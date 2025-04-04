@@ -59,12 +59,24 @@ RUN \
 	mkdir .n8n && \
 	chown node:node .n8n
 
-# Install neo4j-driver, mailgun.js, and form-data locall sy
+# Optional: install useful global packages required at runtime
+ENV SHELL=/bin/sh
 
-
-ENV SHELL /bin/sh
 USER root
-RUN npm install -g neo4j-driver mailgun.js form-data composio-core openai @mendable/firecrawl-js resend @supabase/supabase-js @pinecone-database/pinecone
+RUN npm install -g \
+    neo4j-driver \
+    mailgun.js \
+    form-data \
+    composio-core \
+    openai \
+    @mendable/firecrawl-js \
+    resend \
+    @supabase/supabase-js \
+    @pinecone-database/pinecone
+
+# If any CLI binaries were installed and should be globally available, you can verify PATH here
+ENV PATH="/usr/local/bin:$PATH"
+
 USER node
 EXPOSE 5678/tcp
 ENTRYPOINT ["tini", "--", "/docker-entrypoint.sh"]
