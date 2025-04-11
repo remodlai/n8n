@@ -38,6 +38,7 @@
   },
   "dependencies": {
     "@langchain/core": "catalog:",
+    "@mendable/firecrawl-js": "^1.22.1",
     "@n8n/client-oauth2": "workspace:*",
     "@n8n/config": "workspace:*",
     "@n8n/di": "workspace:*",
