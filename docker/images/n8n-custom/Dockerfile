@@ -72,6 +72,7 @@ RUN \
     resend \
     @supabase/supabase-js \
 	random-words \
+	sillyname \
     'pinecone5@npm:@pinecone-database/pinecone@5.1.1'
 	
 	# If any CLI binaries were installed and should be globally available, you can verify PATH here
