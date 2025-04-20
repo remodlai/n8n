@@ -71,6 +71,7 @@ RUN \
     @mendable/firecrawl-js \
     resend \
     @supabase/supabase-js \
+	@supabase/ssr \
 	random-words \
 	sillyname \
     'pinecone5@npm:@pinecone-database/pinecone@5.1.1'
@@ -82,4 +83,4 @@ RUN \
 	EXPOSE 5678/tcp
 	ENTRYPOINT ["tini", "--", "/docker-entrypoint.sh"]
 
-   
+   `
