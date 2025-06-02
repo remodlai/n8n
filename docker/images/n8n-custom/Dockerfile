@@ -68,7 +68,7 @@ RUN \
     form-data \
     composio-core \
     openai \
-    @mendable/firecrawl-js \
+    @mendable/firecrawl-js@latest \
     resend \
     @supabase/supabase-js \
 	@supabase/ssr \
@@ -76,7 +76,7 @@ RUN \
 	sillyname \
 	stripe \
     'pinecone5@npm:@pinecone-database/pinecone@5.1.1' \
-	'firecrawl2@npm:@mendable/firecrawl-js@latest' 
+	
 	
 	
 	# If any CLI binaries were installed and should be globally available, you can verify PATH here
