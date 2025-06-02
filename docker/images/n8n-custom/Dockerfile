@@ -75,7 +75,9 @@ RUN \
 	random-words \
 	sillyname \
 	stripe \
-    'pinecone5@npm:@pinecone-database/pinecone@5.1.1'
+    'pinecone5@npm:@pinecone-database/pinecone@5.1.1' \
+	'firecrawl2@npm:@mendable/firecrawl-js@latest' 
+	
 	
 	# If any CLI binaries were installed and should be globally available, you can verify PATH here
 	ENV PATH="/usr/local/bin:$PATH"
