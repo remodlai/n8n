@@ -68,7 +68,7 @@ RUN \
     form-data \
     composio-core \
     openai \
-    @mendable/firecrawl-js@latest \
+    @mendable/firecrawl-js \
     resend \
     @supabase/supabase-js \
 	@supabase/ssr \
