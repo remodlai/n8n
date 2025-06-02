@@ -75,7 +75,7 @@ RUN \
 	random-words \
 	sillyname \
 	stripe \
-    'pinecone5@npm:@pinecone-database/pinecone@5.1.1' \
+    'pinecone5@npm:@pinecone-database/pinecone@5.1.1'
 	
 	
 	
