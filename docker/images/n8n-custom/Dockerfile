@@ -72,6 +72,7 @@ RUN \
     resend \
     @supabase/supabase-js \
 	@supabase/ssr \
+	@upstash/search \
 	random-words \
 	sillyname \
 	stripe \
