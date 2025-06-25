@@ -1,0 +1,15 @@
+{
+  "database": {
+    "type": "sqlite",
+    "sqlite": {
+      "database": "database.sqlite"
+    }
+  },
+  "generic": {
+    "timezone": "America/New_York"
+  },
+  "logs": {
+    "level": "info",
+    "output": "console"
+  }
+} 

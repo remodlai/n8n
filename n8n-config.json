@@ -1,0 +1,62 @@
+{
+  "database": {
+    "type": "sqlite",
+    "sqlite": {
+      "database": "database.sqlite"
+    }
+  },
+  "executions": {
+    "mode": "queue",
+    "saveDataOnSuccess": "all",
+    "saveDataOnError": "all",
+    "saveExecutionProgress": true,
+    "timeout": 3600,
+    "maxTimeout": 3600
+  },
+  "queue": {
+    "bull": {
+      "redis": {
+        "host": "localhost",
+        "port": 6379,
+        "db": 0
+      }
+    }
+  },
+  "generic": {
+    "timezone": "America/New_York"
+  },
+  "security": {
+    "basicAuth": {
+      "active": false
+    }
+  },
+  "endpoints": {
+    "rest": "rest",
+    "webhook": "webhook",
+    "webhookWaiting": "webhook-waiting",
+    "webhookTest": "webhook-test"
+  },
+  "userManagement": {
+    "disabled": false
+  },
+  "publicApi": {
+    "disabled": false
+  },
+  "nodes": {
+    "exclude": [],
+    "include": []
+  },
+  "workflows": {
+    "defaultName": "My Workflow"
+  },
+  "externalHookFiles": "",
+  "logs": {
+    "level": "info",
+    "output": "console,file",
+    "file": {
+      "fileSizeMax": 16,
+      "fileCountMax": 100,
+      "location": "logs/n8n.log"
+    }
+  }
+} 
