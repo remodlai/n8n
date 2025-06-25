@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, nextTick, type Ref } from 'v
 import { useRoute, useRouter } from 'vue-router';
 import { useBecomeTemplateCreatorStore } from '@/components/BecomeTemplateCreatorCta/becomeTemplateCreatorStore';
 import { useCloudPlanStore } from '@/stores/cloudPlan.store';
-import { useRootStore } from '@/stores/root.store';
+import { useRootStore } from '@n8n/stores/useRootStore';
 import { useSettingsStore } from '@/stores/settings.store';
 import { useTemplatesStore } from '@/stores/templates.store';
 import { useUIStore } from '@/stores/ui.store';
@@ -15,7 +15,7 @@ import { useSourceControlStore } from '@/stores/sourceControl.store';
 import { hasPermission } from '@/utils/rbac/permissions';
 import { useDebounce } from '@/composables/useDebounce';
 import { useExternalHooks } from '@/composables/useExternalHooks';
-import { useI18n } from '@/composables/useI18n';
+import { useI18n } from '@n8n/i18n';
 import { useTelemetry } from '@/composables/useTelemetry';
 import { useUserHelpers } from '@/composables/useUserHelpers';
 
@@ -25,6 +25,7 @@ import { usePageRedirectionHelper } from '@/composables/usePageRedirectionHelper
 
 import { useGlobalEntityCreation } from '@/composables/useGlobalEntityCreation';
 import { N8nNavigationDropdown, N8nTooltip, N8nLink, N8nIconButton } from '@n8n/design-system';
+import type { IMenuItem } from '@n8n/design-system';
 import { onClickOutside, type VueInstance } from '@vueuse/core';
 import Logo from './Logo/Logo.vue';
 
@@ -67,7 +68,7 @@ const userMenuItems = ref([
 	},
 ]);
 
-const mainMenuItems = computed(() => [
+const mainMenuItems = computed<IMenuItem[]>(() => [
 	{
 		id: 'cloud-admin',
 		position: 'bottom',
@@ -112,7 +113,7 @@ const mainMenuItems = computed(() => [
 		position: 'bottom',
 		route: { to: { name: VIEWS.INSIGHTS } },
 		available:
-			settingsStore.settings.insights.enabled &&
+			settingsStore.settings.activeModules.includes('insights') &&
 			hasPermission(['rbac'], { rbac: { scope: 'insights:list' } }),
 	},
 	{
@@ -126,7 +127,7 @@ const mainMenuItems = computed(() => [
 				icon: 'video',
 				label: i18n.baseText('mainSidebar.helpMenuItems.quickstart'),
 				link: {
-					href: 'https://www.youtube.com/watch?v=1MwSoB0gnM4',
+					href: 'https://www.youtube.com/watch?v=4cQWJViybAQ',
 					target: '_blank',
 				},
 			},
@@ -276,6 +277,8 @@ const handleSelect = (key: string) => {
 			trackHelpItemClick(key);
 			break;
 		}
+		case 'insights':
+			telemetry.track('User clicked insights link from side menu');
 		default:
 			break;
 	}
@@ -503,8 +506,7 @@ onClickOutside(createBtn as Ref<VueInstance>, () => {
 	grid-template-rows: auto 1fr auto;
 	border-right: var(--border-width-base) var(--border-style-base) var(--color-foreground-base);
 	transition: width 150ms ease-in-out;
-	min-width: $sidebar-expanded-width;
-	max-width: 244px;
+	width: $sidebar-expanded-width;
 	background-color: var(--menu-background, var(--color-background-xlight));
 
 	.logo {

@@ -38,6 +38,7 @@ describe('McpClientTool', () => {
 					description: 'MyTool does something',
 					name: 'MyTool',
 					value: 'MyTool',
+					inputSchema: { type: 'object', properties: { input: { type: 'string' } } },
 				},
 			]);
 		});
@@ -57,7 +58,7 @@ describe('McpClientTool', () => {
 			jest.resetAllMocks();
 		});
 
-		it('should return a valid toolkit with usable tools', async () => {
+		it('should return a valid toolkit with usable tools (that returns a string)', async () => {
 			jest.spyOn(Client.prototype, 'connect').mockResolvedValue();
 			jest
 				.spyOn(Client.prototype, 'callTool')
@@ -93,7 +94,7 @@ describe('McpClientTool', () => {
 			expect(tools).toHaveLength(2);
 
 			const toolCallResult = await tools[0].invoke({ input: 'foo' });
-			expect(toolCallResult).toEqual([{ type: 'text', text: 'result from tool' }]);
+			expect(toolCallResult).toEqual(JSON.stringify([{ type: 'text', text: 'result from tool' }]));
 		});
 
 		it('should support selecting tools to expose', async () => {

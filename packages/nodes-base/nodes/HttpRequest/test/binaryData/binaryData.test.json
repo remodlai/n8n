@@ -92,6 +92,23 @@
 				}
 			},
 			"position": [1020, 720]
+		},
+		{
+			"parameters": {
+				"url": "https://dummy.domain/path/to/text.txt",
+				"options": {
+					"response": {
+						"response": {
+							"responseFormat": "file"
+						}
+					}
+				}
+			},
+			"name": "HTTP Request (v4)2",
+			"type": "n8n-nodes-base.httpRequest",
+			"typeVersion": 4,
+			"position": [1680, 600],
+			"id": "665fef5c-6380-4bc0-be2a-430446b140ca"
 		}
 	],
 	"pinData": {
@@ -99,6 +116,7 @@
 			{
 				"binary": {
 					"data": {
+						"data": "dGVzdA==",
 						"mimeType": "image/png",
 						"fileType": "image",
 						"fileExtension": "png",
@@ -113,6 +131,7 @@
 			{
 				"binary": {
 					"data": {
+						"data": "dGVzdA==",
 						"mimeType": "image/png",
 						"fileType": "image",
 						"fileExtension": "png",
@@ -127,6 +146,7 @@
 			{
 				"binary": {
 					"data": {
+						"data": "dGVzdA==",
 						"mimeType": "image/png",
 						"fileType": "image",
 						"fileExtension": "png",
@@ -141,6 +161,7 @@
 			{
 				"binary": {
 					"data": {
+						"data": "dGVzdA==",
 						"mimeType": "image/png",
 						"fileType": "image",
 						"fileExtension": "png",
@@ -155,6 +176,7 @@
 			{
 				"binary": {
 					"data": {
+						"data": "dGVzdA==",
 						"mimeType": "image/png",
 						"fileType": "image",
 						"fileExtension": "png",
@@ -169,11 +191,27 @@
 			{
 				"binary": {
 					"data": {
+						"data": "dGVzdGluZw==",
 						"mimeType": "image/jpeg",
 						"fileType": "image",
 						"fileExtension": "jpg",
 						"fileName": "testing.jpg",
 						"fileSize": "7 B"
+					}
+				},
+				"json": {}
+			}
+		],
+		"HTTP Request (v4)2": [
+			{
+				"binary": {
+					"data": {
+						"data": "dGVzdA==",
+						"mimeType": "text/plain",
+						"fileType": "text",
+						"fileExtension": "txt",
+						"fileName": "text.txt",
+						"fileSize": "4 B"
 					}
 				},
 				"json": {}
@@ -211,6 +249,11 @@
 					},
 					{
 						"node": "Content Disposition",
+						"type": "main",
+						"index": 0
+					},
+					{
+						"node": "HTTP Request (v4)2",
 						"type": "main",
 						"index": 0
 					}

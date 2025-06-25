@@ -1,9 +1,11 @@
 <script lang="ts" setup>
 import { useUIStore } from '@/stores/ui.store';
-import type { PublicInstalledPackage } from 'n8n-workflow';
+import type { IUser, PublicInstalledPackage } from 'n8n-workflow';
 import { NPM_PACKAGE_DOCS_BASE_URL, COMMUNITY_PACKAGE_MANAGE_ACTIONS } from '@/constants';
-import { useI18n } from '@/composables/useI18n';
+import { useI18n } from '@n8n/i18n';
 import { useTelemetry } from '@/composables/useTelemetry';
+import { useSettingsStore } from '@/stores/settings.store';
+import type { UserAction } from '@n8n/design-system';
 
 interface Props {
 	communityPackage?: PublicInstalledPackage | null;
@@ -19,8 +21,9 @@ const { openCommunityPackageUpdateConfirmModal, openCommunityPackageUninstallCon
 	useUIStore();
 const i18n = useI18n();
 const telemetry = useTelemetry();
+const settingsStore = useSettingsStore();
 
-const packageActions = [
+const packageActions: Array<UserAction<IUser>> = [
 	{
 		label: i18n.baseText('settings.communityNodes.viewDocsAction.label'),
 		value: COMMUNITY_PACKAGE_MANAGE_ACTIONS.VIEW_DOCS,
@@ -95,7 +98,10 @@ function onUpdateClick() {
 					</template>
 					<n8n-icon icon="exclamation-triangle" color="danger" size="large" />
 				</n8n-tooltip>
-				<n8n-tooltip v-else-if="communityPackage.updateAvailable" placement="top">
+				<n8n-tooltip
+					v-else-if="settingsStore.isUnverifiedPackagesEnabled && communityPackage.updateAvailable"
+					placement="top"
+				>
 					<template #content>
 						<div>
 							{{ i18n.baseText('settings.communityNodes.updateAvailable.tooltip') }}
