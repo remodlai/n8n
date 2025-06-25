@@ -33,3 +33,4 @@ config.md
 n8n-simple-config.json
 n8n-production-config.json
 n8n-secret-config.json
+n8n-secure-config.json
