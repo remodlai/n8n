@@ -1,33 +1,21 @@
-import { Logger } from '@n8n/backend-common';
 import { GlobalConfig } from '@n8n/config';
-import {
-	ProjectRelationRepository,
-	ProjectRepository,
-	WorkflowRepository,
-	UserRepository,
-} from '@n8n/db';
-import { OnShutdown } from '@n8n/decorators';
-import { Container, Service } from '@n8n/di';
-import type RudderStack from '@rudderstack/rudder-sdk-node';
-import axios from 'axios';
-import { InstanceSettings } from 'n8n-core';
+import { Service } from '@n8n/di';
+import { InstanceSettings, Logger } from 'n8n-core';
 import type { ITelemetryTrackProperties } from 'n8n-workflow';
 
-import { LOWEST_SHUTDOWN_PRIORITY, N8N_VERSION } from '@/constants';
+import { LOWEST_SHUTDOWN_PRIORITY } from '@/constants';
+import { OnShutdown } from '@/decorators/on-shutdown';
+import { WorkflowRepository } from '@/databases/repositories/workflow.repository';
 import type { IExecutionTrackProperties } from '@/interfaces';
 
 @Service()
 export class Telemetry {
 	constructor(
 		private readonly logger: Logger,
-		// These parameters are needed for DI but not used in our bypassed implementation
-		private readonly workflowRepository: WorkflowRepository,
-		private readonly globalConfig: GlobalConfig,
-		private readonly instanceSettings: InstanceSettings,
-		// Additional upstream dependencies for compatibility
-		private readonly projectRepository?: ProjectRepository,
-		private readonly projectRelationRepository?: ProjectRelationRepository,
-		private readonly userRepository?: UserRepository,
+		// These parameters are needed for DI but not used
+		private readonly _: WorkflowRepository,
+		private readonly __: GlobalConfig,
+		private readonly ___: InstanceSettings,
 	) {}
 
 	async init() {

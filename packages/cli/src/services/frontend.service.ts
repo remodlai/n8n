@@ -1,12 +1,10 @@
 import type { FrontendSettings, ITelemetrySettings } from '@n8n/api-types';
-import { LicenseState, Logger, ModuleRegistry } from '@n8n/backend-common';
 import { GlobalConfig, SecurityConfig } from '@n8n/config';
-import { LICENSE_FEATURES } from '@n8n/constants';
 import { Container, Service } from '@n8n/di';
 import { createWriteStream } from 'fs';
 import { mkdir } from 'fs/promises';
-import uniq from 'lodash/uniq';
-import { BinaryDataConfig, InstanceSettings } from 'n8n-core';
+import * as lodash from 'lodash';
+import { InstanceSettings, Logger } from 'n8n-core';
 import type { ICredentialType, INodeTypeBaseDescription } from 'n8n-workflow';
 import * as path from 'path';
 
@@ -17,6 +15,7 @@ import { CredentialsOverwrites } from '@/credentials-overwrites';
 import { getLdapLoginLabel } from '@/ldap.ee/helpers.ee';
 import { License } from '@/license';
 import { LoadNodesAndCredentials } from '@/load-nodes-and-credentials';
+import { ModulesConfig } from '@/modules/modules.config';
 import { isApiEnabled } from '@/public-api';
 import { PushConfig } from '@/push/push.config';
 import type { CommunityPackagesService } from '@/services/community-packages.service';
@@ -47,10 +46,8 @@ export class FrontendService {
 		private readonly instanceSettings: InstanceSettings,
 		private readonly urlService: UrlService,
 		private readonly securityConfig: SecurityConfig,
+		private readonly modulesConfig: ModulesConfig,
 		private readonly pushConfig: PushConfig,
-		private readonly binaryDataConfig: BinaryDataConfig,
-		private readonly licenseState: LicenseState,
-		private readonly moduleRegistry: ModuleRegistry,
 	) {
 		loadNodesAndCredentials.addPostProcessor(async () => await this.generateTypes());
 		void this.generateTypes();
@@ -107,7 +104,7 @@ export class FrontendService {
 			timezone: this.globalConfig.generic.timezone,
 			urlBaseWebhook: this.urlService.getWebhookBaseUrl(),
 			urlBaseEditor: instanceBaseUrl,
-			binaryDataMode: this.binaryDataConfig.mode,
+			binaryDataMode: config.getEnv('binaryDataManager.mode'),
 			nodeJsVersion: process.version.replace(/^v/, ''),
 			versionCli: N8N_VERSION,
 			concurrency: config.getEnv('executions.concurrency.productionLimit'),
@@ -131,12 +128,12 @@ export class FrontendService {
 				apiHost: this.globalConfig.diagnostics.posthogConfig.apiHost,
 				apiKey: this.globalConfig.diagnostics.posthogConfig.apiKey,
 				autocapture: false,
-				disableSessionRecording: this.globalConfig.deployment.type !== 'cloud',
+				disableSessionRecording: config.getEnv('deployment.type') !== 'cloud',
 				debug: this.globalConfig.logging.level === 'debug',
 			},
 			personalizationSurveyEnabled:
-				this.globalConfig.personalization.enabled && this.globalConfig.diagnostics.enabled,
-			defaultLocale: this.globalConfig.defaultLocale,
+				config.getEnv('personalization.enabled') && this.globalConfig.diagnostics.enabled,
+			defaultLocale: config.getEnv('defaultLocale'),
 			userManagement: {
 				quota: this.license.getUsersLimit(),
 				showSetupOnFirstLoad: !config.getEnv('userManagement.isInstanceOwnerSetUp'),
@@ -152,11 +149,6 @@ export class FrontendService {
 					loginEnabled: false,
 					loginLabel: '',
 				},
-				oidc: {
-					loginEnabled: false,
-					loginUrl: `${instanceBaseUrl}/${restEndpoint}/sso/oidc/login`,
-					callbackUrl: `${instanceBaseUrl}/${restEndpoint}/sso/oidc/callback`,
-				},
 			},
 			publicApi: {
 				enabled: isApiEnabled(),
@@ -168,7 +160,7 @@ export class FrontendService {
 			},
 			workflowTagsDisabled: this.globalConfig.tags.disabled,
 			logLevel: this.globalConfig.logging.level,
-			hiringBannerEnabled: this.globalConfig.hiringBanner.enabled,
+			hiringBannerEnabled: config.getEnv('hiringBanner.enabled'),
 			aiAssistant: {
 				enabled: false,
 			},
@@ -177,12 +169,10 @@ export class FrontendService {
 				host: this.globalConfig.templates.host,
 			},
 			executionMode: config.getEnv('executions.mode'),
-			isMultiMain: this.instanceSettings.isMultiMain,
 			pushBackend: this.pushConfig.backend,
 			communityNodesEnabled: this.globalConfig.nodes.communityPackages.enabled,
-			unverifiedCommunityNodesEnabled: this.globalConfig.nodes.communityPackages.unverifiedEnabled,
 			deployment: {
-				type: this.globalConfig.deployment.type,
+				type: config.getEnv('deployment.type'),
 			},
 			allowedModules: {
 				builtIn: process.env.NODE_FUNCTION_ALLOW_BUILTIN?.split(',') ?? undefined,
@@ -192,7 +182,6 @@ export class FrontendService {
 				sharing: false,
 				ldap: false,
 				saml: false,
-				oidc: false,
 				logStreaming: false,
 				advancedExecutionFilters: false,
 				variables: false,
@@ -205,7 +194,6 @@ export class FrontendService {
 				workflowHistory: false,
 				workerView: false,
 				advancedPermissions: false,
-				apiKeyScopes: false,
 				projects: {
 					team: {
 						limit: 0,
@@ -215,13 +203,16 @@ export class FrontendService {
 			mfa: {
 				enabled: false,
 			},
-			hideUsagePage: this.globalConfig.hideUsagePage,
+			hideUsagePage: config.getEnv('hideUsagePage'),
 			license: {
 				consumerId: 'unknown',
 				environment: this.globalConfig.license.tenantId === 1 ? 'production' : 'staging',
 			},
 			variables: {
 				limit: 0,
+			},
+			expressions: {
+				evaluator: config.getEnv('expression.evaluator'),
 			},
 			banners: {
 				dismissed: [],
@@ -250,10 +241,11 @@ export class FrontendService {
 			folders: {
 				enabled: false,
 			},
-			evaluation: {
-				quota: this.licenseState.getMaxWorkflowsWithEvaluations(),
+			insights: {
+				enabled: this.modulesConfig.modules.includes('insights'),
+				summary: true,
+				dashboard: false,
 			},
-			activeModules: this.moduleRegistry.getActiveModules(),
 		};
 	}
 
@@ -302,8 +294,8 @@ export class FrontendService {
 			this.settings.easyAIWorkflowOnboarded = false;
 		}
 
-		const isS3Selected = this.binaryDataConfig.mode === 's3';
-		const isS3Available = this.binaryDataConfig.availableModes.includes('s3');
+		const isS3Selected = config.getEnv('binaryDataManager.mode') === 's3';
+		const isS3Available = config.getEnv('binaryDataManager.availableModes').includes('s3');
 		const isS3Licensed = this.license.isBinaryDataS3Licensed();
 		const isAiAssistantEnabled = this.license.isAiAssistantEnabled();
 		const isAskAiEnabled = this.license.isAskAiEnabled();
@@ -318,7 +310,6 @@ export class FrontendService {
 			logStreaming: this.license.isLogStreamingEnabled(),
 			ldap: this.license.isLdapEnabled(),
 			saml: this.license.isSamlEnabled(),
-			oidc: this.licenseState.isOidcLicensed(),
 			advancedExecutionFilters: this.license.isAdvancedExecutionFiltersEnabled(),
 			variables: this.license.isVariablesEnabled(),
 			sourceControl: this.license.isSourceControlLicensed(),
@@ -327,10 +318,9 @@ export class FrontendService {
 			debugInEditor: this.license.isDebugInEditorLicensed(),
 			binaryDataS3: isS3Available && isS3Selected && isS3Licensed,
 			workflowHistory:
-				this.license.isWorkflowHistoryLicensed() && this.globalConfig.workflowHistory.enabled,
+				this.license.isWorkflowHistoryLicensed() && config.getEnv('workflowHistory.enabled'),
 			workerView: this.license.isWorkerViewLicensed(),
 			advancedPermissions: this.license.isAdvancedPermissionsLicensed(),
-			apiKeyScopes: this.license.isApiKeyScopesEnabled(),
 		});
 
 		if (this.license.isLdapEnabled()) {
@@ -347,17 +337,11 @@ export class FrontendService {
 			});
 		}
 
-		if (this.licenseState.isOidcLicensed()) {
-			Object.assign(this.settings.sso.oidc, {
-				loginEnabled: config.getEnv('sso.oidc.loginEnabled'),
-			});
-		}
-
 		if (this.license.isVariablesEnabled()) {
 			this.settings.variables.limit = this.license.getVariablesLimit();
 		}
 
-		if (this.globalConfig.workflowHistory.enabled && this.license.isWorkflowHistoryLicensed()) {
+		if (this.license.isWorkflowHistoryLicensed() && config.getEnv('workflowHistory.enabled')) {
 			Object.assign(this.settings.workflowHistory, {
 				pruneTime: getWorkflowHistoryPruneTime(),
 				licensePruneTime: getWorkflowHistoryLicensePruneTime(),
@@ -381,24 +365,23 @@ export class FrontendService {
 			this.settings.aiCredits.credits = this.license.getAiCredits();
 		}
 
-		this.settings.mfa.enabled = this.globalConfig.mfa.enabled;
+		Object.assign(this.settings.insights, {
+			enabled: this.modulesConfig.modules.includes('insights'),
+			summary: this.license.isInsightsSummaryEnabled(),
+			dashboard: this.license.isInsightsDashboardEnabled(),
+		});
+
+		this.settings.mfa.enabled = config.get('mfa.enabled');
 
 		this.settings.executionMode = config.getEnv('executions.mode');
 
-		this.settings.binaryDataMode = this.binaryDataConfig.mode;
+		this.settings.binaryDataMode = config.getEnv('binaryDataManager.mode');
 
 		this.settings.enterprise.projects.team.limit = this.license.getTeamProjectLimit();
 
 		this.settings.folders.enabled = this.license.isFoldersEnabled();
 
-		// Refresh evaluation settings
-		this.settings.evaluation.quota = this.licenseState.getMaxWorkflowsWithEvaluations();
-
 		return this.settings;
-	}
-
-	getModuleSettings() {
-		return Object.fromEntries(this.moduleRegistry.settings);
 	}
 
 	private writeStaticJSON(name: string, data: INodeTypeBaseDescription[] | ICredentialType[]) {
@@ -433,7 +416,7 @@ export class FrontendService {
 			}
 
 			if (overwrittenProperties.length) {
-				credential.__overwrittenProperties = uniq(overwrittenProperties);
+				credential.__overwrittenProperties = lodash.uniq(overwrittenProperties);
 			}
 		}
 	}
