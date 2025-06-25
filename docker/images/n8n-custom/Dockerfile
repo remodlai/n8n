@@ -8,14 +8,20 @@ WORKDIR /src
 COPY . /src
 
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store --mount=type=cache,id=pnpm-metadata,target=/root/.cache/pnpm/metadata DOCKER_BUILD=true pnpm install --frozen-lockfile
-RUN pnpm build
+# Increase Node.js heap size to prevent out of memory errors during build
+# Disable Turbo telemetry and cache to avoid filesystem issues in Docker
+RUN NODE_OPTIONS="--max-old-space-size=4096" TURBO_TELEMETRY_DISABLED=1 pnpm build --no-cache
 
 # Delete all dev dependencies
-RUN jq 'del(.pnpm.patchedDependencies)' package.json > package.json.tmp; mv package.json.tmp package.json
 RUN node .github/scripts/trim-fe-packageJson.js
+# We don't want to remove all patches because we want them still to be applied
+# in `pnpm deploy`. However, we need to remove FE patches because we trim the FE
+# package.json files and `pnpm deploy` will fail otherwise. element-plus is the
+# only FE patch that we need to remove.
+RUN jq '.pnpm.patchedDependencies |= with_entries(select(.key | startswith("pdfjs-dist") or startswith("pkce-challenge")))' package.json > package.json.tmp; mv package.json.tmp package.json
 
-# Delete any source code, source-mapping, or typings
-RUN find . -type f -name "*.ts" -o -name "*.js.map" -o -name "*.vue" -o -name "tsconfig.json" -o -name "*.tsbuildinfo" | xargs rm -rf
+# Delete any source code or typings
+RUN find . -type f -name "*.ts" -o -name "*.vue" -o -name "tsconfig.json" -o -name "*.tsbuildinfo" | xargs rm -rf
 
 # Deploy the `n8n` package into /compiled
 RUN mkdir /compiled
@@ -34,7 +40,7 @@ COPY docker/images/n8n/docker-entrypoint.sh /
 
 # Setup the Task Runner Launcher
 ARG TARGETPLATFORM
-ARG LAUNCHER_VERSION=1.1.1
+ARG LAUNCHER_VERSION=1.1.3
 COPY docker/images/n8n/n8n-task-runners.json /etc/n8n-task-runners.json
 # Download, verify, then extract the launcher binary
 RUN \
@@ -59,10 +65,17 @@ RUN \
 	mkdir .n8n && \
 	chown node:node .n8n
 
-	ENV SHELL=/bin/sh
+# pdfjs-dist has an optional dependency on @napi-rs/canvas, which is required
+# for it to work.
+RUN cd /usr/local/lib/node_modules/n8n/node_modules/pdfjs-dist && npm install @napi-rs/canvas
 
-	USER root
-	RUN npm install -g \
+# Install npm 11.4.1 to fix the vulnerable cross-spawn dependency
+RUN npm install -g npm@11.4.1
+
+ENV SHELL=/bin/sh
+
+USER root
+RUN npm install -g \
     neo4j-driver \
     mailgun.js \
     form-data \
@@ -77,14 +90,12 @@ RUN \
 	sillyname \
 	stripe \
     'pinecone5@npm:@pinecone-database/pinecone@5.1.1'
-	
-	
-	
-	# If any CLI binaries were installed and should be globally available, you can verify PATH here
-	ENV PATH="/usr/local/bin:$PATH"
-	
-	USER node
-	EXPOSE 5678/tcp
-	ENTRYPOINT ["tini", "--", "/docker-entrypoint.sh"]
+
+# If any CLI binaries were installed and should be globally available, you can verify PATH here
+ENV PATH="/usr/local/bin:$PATH"
+
+USER node
+EXPOSE 5678/tcp
+ENTRYPOINT ["tini", "--", "/docker-entrypoint.sh"]
 
    
