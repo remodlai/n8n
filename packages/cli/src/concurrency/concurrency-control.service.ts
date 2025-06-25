@@ -8,7 +8,6 @@ import { ExecutionRepository } from '@/databases/repositories/execution.reposito
 import { InvalidConcurrencyLimitError } from '@/errors/invalid-concurrency-limit.error';
 import { UnknownExecutionModeError } from '@/errors/unknown-execution-mode.error';
 import { EventService } from '@/events/event.service';
-import type { IExecutingWorkflowData } from '@/interfaces';
 import { Telemetry } from '@/telemetry';
 
 import { ConcurrencyQueue } from './concurrency-queue';
@@ -25,10 +24,6 @@ export class ConcurrencyControlService {
 	private readonly limits: Map<ConcurrencyQueueType, number>;
 
 	private readonly queues: Map<ConcurrencyQueueType, ConcurrencyQueue>;
-
-	private readonly limitsToReport = CLOUD_TEMP_REPORTABLE_THRESHOLDS.map(
-		(t) => CLOUD_TEMP_PRODUCTION_LIMIT - t,
-	);
 
 	constructor(
 		private readonly logger: Logger,
@@ -99,7 +94,7 @@ export class ConcurrencyControlService {
 	has(executionId: string) {
 		if (!this.isEnabled) return false;
 
-		for (const queue of this.queues.values()) {
+		for (const queue of Array.from(this.queues.values())) {
 			if (queue.has(executionId)) {
 				return true;
 			}
@@ -140,26 +135,24 @@ export class ConcurrencyControlService {
 	 * enqueued executions that have response promises, as these cannot
 	 * be re-run via `Start.runEnqueuedExecutions` during startup.
 	 */
-	async removeAll(activeExecutions: { [executionId: string]: IExecutingWorkflowData }) {
+	async removeAll(executionIdsToCancel: string[]) {
 		if (!this.isEnabled) return;
 
 		this.queues.forEach((queue) => {
 			const enqueuedExecutionIds = queue.getAll();
 
-			for (const id of enqueuedExecutionIds) {
+			for (const id of Array.from(enqueuedExecutionIds)) {
 				queue.remove(id);
 			}
 		});
 
-		const executionIds = Object.entries(activeExecutions)
-			.filter(([_, execution]) => execution.status === 'new' && execution.responsePromise)
-			.map(([executionId, _]) => executionId);
+		if (executionIdsToCancel.length === 0) return;
 
-		if (executionIds.length === 0) return;
+		await this.executionRepository.cancelMany(executionIdsToCancel);
 
-		await this.executionRepository.cancelMany(executionIds);
-
-		this.logger.info('Canceled enqueued executions with response promises', { executionIds });
+		this.logger.info('Canceled enqueued executions with response promises', {
+			executionIds: executionIdsToCancel,
+		});
 	}
 
 	disable() {
@@ -187,8 +180,10 @@ export class ConcurrencyControlService {
 		return this.getQueue(mode) === undefined;
 	}
 
-	private shouldReport(capacity: number) {
-		return config.getEnv('deployment.type') === 'cloud' && this.limitsToReport.includes(capacity);
+	private shouldReport(_capacity: number) {
+		// We're not sending telemetry, but we need this function for the ConcurrencyQueue
+		// Returning false ensures we never attempt to send telemetry data
+		return false;
 	}
 
 	/**

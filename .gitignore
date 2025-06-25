@@ -22,3 +22,15 @@ packages/**/.turbo
 CHANGELOG-*.md
 *.mdx
 build-storybook.log
+*.junit.xml
+junit.xml
+passwords.txt
+test-results.json
+*.0x
+secrets/
+set-env.sh
+config.md
+n8n-simple-config.json
+n8n-production-config.json
+n8n-secret-config.json
+n8n-secure-config.json

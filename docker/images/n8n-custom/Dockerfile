@@ -19,7 +19,7 @@ RUN find . -type f -name "*.ts" -o -name "*.js.map" -o -name "*.vue" -o -name "t
 
 # Deploy the `n8n` package into /compiled
 RUN mkdir /compiled
-RUN NODE_ENV=production DOCKER_BUILD=true pnpm --filter=n8n --prod --no-optional deploy /compiled
+RUN NODE_ENV=production DOCKER_BUILD=true pnpm --filter=n8n --prod --no-optional --legacy deploy /compiled
 
 # 2. Start with a new clean image with just the code that is needed to run n8n
 FROM n8nio/base:${NODE_VERSION}
@@ -34,7 +34,7 @@ COPY docker/images/n8n/docker-entrypoint.sh /
 
 # Setup the Task Runner Launcher
 ARG TARGETPLATFORM
-ARG LAUNCHER_VERSION=1.1.0
+ARG LAUNCHER_VERSION=1.1.1
 COPY docker/images/n8n/n8n-task-runners.json /etc/n8n-task-runners.json
 # Download, verify, then extract the launcher binary
 RUN \
@@ -59,11 +59,32 @@ RUN \
 	mkdir .n8n && \
 	chown node:node .n8n
 
-# Install neo4j-driver, mailgun.js, and form-data locally
+	ENV SHELL=/bin/sh
 
+	USER root
+	RUN npm install -g \
+    neo4j-driver \
+    mailgun.js \
+    form-data \
+    composio-core \
+    openai \
+    @mendable/firecrawl-js \
+    resend \
+    @supabase/supabase-js \
+	@supabase/ssr \
+	@upstash/search \
+	random-words \
+	sillyname \
+	stripe \
+    'pinecone5@npm:@pinecone-database/pinecone@5.1.1'
+	
+	
+	
+	# If any CLI binaries were installed and should be globally available, you can verify PATH here
+	ENV PATH="/usr/local/bin:$PATH"
+	
+	USER node
+	EXPOSE 5678/tcp
+	ENTRYPOINT ["tini", "--", "/docker-entrypoint.sh"]
 
-ENV SHELL /bin/sh
-USER root
-RUN npm install -g neo4j-driver mailgun.js form-data composio-core openai @mendable/firecrawl-js
-USER node
-ENTRYPOINT ["tini", "--", "/docker-entrypoint.sh"]
+   

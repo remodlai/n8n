@@ -1,6 +1,6 @@
 {
   "name": "n8n-core",
-  "version": "1.77.0",
+  "version": "1.87.0",
   "description": "Core functionality of n8n",
   "main": "dist/index",
   "types": "dist/index.d.ts",
@@ -27,6 +27,7 @@
     "bin"
   ],
   "devDependencies": {
+    "@n8n/typescript-config": "workspace:*",
     "@types/aws4": "^1.5.1",
     "@types/concat-stream": "^2.0.0",
     "@types/express": "catalog:",
@@ -37,6 +38,7 @@
   },
   "dependencies": {
     "@langchain/core": "catalog:",
+    "@mendable/firecrawl-js": "^1.22.1",
     "@n8n/client-oauth2": "workspace:*",
     "@n8n/config": "workspace:*",
     "@n8n/di": "workspace:*",
