@@ -422,7 +422,7 @@ export class License implements LicenseProvider {
 	}
 
 	getTriggerLimit() {
-		return this.getValue(LICENSE_QUOTAS.TRIGGERS_LIMIT) ?? UNLIMITED_LICENSE_QUOTA;
+		return this.getValue(LICENSE_QUOTAS.TRIGGER_LIMIT) ?? UNLIMITED_LICENSE_QUOTA;
 	}
 
 	getVariablesLimit() {
@@ -442,7 +442,7 @@ export class License implements LicenseProvider {
 	}
 
 	getPlanName(): string {
-		return this.getMainPlan()?.productMetadata?.name ?? 'Community';
+		return (this.getMainPlan()?.productMetadata?.name as string) ?? 'Community';
 	}
 
 	getInfo(): string {
