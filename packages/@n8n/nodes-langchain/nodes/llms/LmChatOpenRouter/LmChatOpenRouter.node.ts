@@ -119,6 +119,108 @@ export class LmChatOpenRouter implements INodeType {
 				default: 'openai/gpt-4.1-mini',
 			},
 			{
+				displayName: 'Provider',
+				name: 'provider',
+				type: 'options',
+				description:
+					"Force the request to use a specific provider. Leave empty to use OpenRouter's automatic routing.",
+				options: [
+					{
+						name: 'Auto (Let OpenRouter Choose)',
+						value: 'auto',
+					},
+					{
+						name: 'Anyscale',
+						value: 'Anyscale',
+					},
+					{
+						name: 'Avian',
+						value: 'Avian',
+					},
+					{
+						name: 'AWS Bedrock',
+						value: 'AWS Bedrock',
+					},
+					{
+						name: 'Azure',
+						value: 'Azure',
+					},
+					{
+						name: 'Cerebras',
+						value: 'Cerebras',
+					},
+					{
+						name: 'Cloudflare',
+						value: 'Cloudflare',
+					},
+					{
+						name: 'Cohere',
+						value: 'Cohere',
+					},
+					{
+						name: 'DeepInfra',
+						value: 'DeepInfra',
+					},
+					{
+						name: 'DeepSeek',
+						value: 'DeepSeek',
+					},
+					{
+						name: 'Fireworks',
+						value: 'Fireworks',
+					},
+					{
+						name: 'Google',
+						value: 'Google',
+					},
+					{
+						name: 'Groq',
+						value: 'Groq',
+					},
+					{
+						name: 'Hyperbolic',
+						value: 'Hyperbolic',
+					},
+					{
+						name: 'Lambda',
+						value: 'Lambda',
+					},
+					{
+						name: 'Lepton',
+						value: 'Lepton',
+					},
+					{
+						name: 'Mistral',
+						value: 'Mistral',
+					},
+					{
+						name: 'Novita',
+						value: 'Novita',
+					},
+					{
+						name: 'OpenAI',
+						value: 'OpenAI',
+					},
+					{
+						name: 'Perplexity',
+						value: 'Perplexity',
+					},
+					{
+						name: 'SambaNova',
+						value: 'SambaNova',
+					},
+					{
+						name: 'Together',
+						value: 'Together',
+					},
+					{
+						name: 'xAI',
+						value: 'xAI',
+					},
+				],
+				default: 'auto',
+			},
+			{
 				displayName: 'Options',
 				name: 'options',
 				placeholder: 'Add Option',
@@ -215,6 +317,7 @@ export class LmChatOpenRouter implements INodeType {
 		const credentials = await this.getCredentials<OpenAICompatibleCredential>('openRouterApi');
 
 		const modelName = this.getNodeParameter('model', itemIndex) as string;
+		const provider = this.getNodeParameter('provider', itemIndex, 'auto') as string;
 
 		const options = this.getNodeParameter('options', itemIndex, {}) as {
 			frequencyPenalty?: number;
@@ -232,6 +335,17 @@ export class LmChatOpenRouter implements INodeType {
 			httpAgent: getHttpProxyAgent(),
 		};
 
+		// Build modelKwargs based on options
+		const modelKwargs: any = {};
+
+		if (options.responseFormat) {
+			modelKwargs.response_format = { type: options.responseFormat };
+		}
+
+		if (provider !== 'auto') {
+			modelKwargs.provider = { only: [provider] };
+		}
+
 		const model = new ChatOpenAI({
 			openAIApiKey: credentials.apiKey,
 			model: modelName,
@@ -240,11 +354,7 @@ export class LmChatOpenRouter implements INodeType {
 			maxRetries: options.maxRetries ?? 2,
 			configuration,
 			callbacks: [new N8nLlmTracing(this)],
-			modelKwargs: options.responseFormat
-				? {
-						response_format: { type: options.responseFormat },
-					}
-				: undefined,
+			modelKwargs: Object.keys(modelKwargs).length > 0 ? modelKwargs : undefined,
 			onFailedAttempt: makeN8nLlmFailedAttemptHandler(this, openAiFailedAttemptHandler),
 		});
 
