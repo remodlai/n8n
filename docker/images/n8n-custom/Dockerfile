@@ -6,7 +6,7 @@ FROM --platform=linux/amd64 n8nio/base:${NODE_VERSION} AS builder
 # Build the application from source
 WORKDIR /src
 COPY . /src
-
+RUN npm install -g pnpm
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store --mount=type=cache,id=pnpm-metadata,target=/root/.cache/pnpm/metadata DOCKER_BUILD=true pnpm install --frozen-lockfile
 # Increase Node.js heap size to prevent out of memory errors during build
 # Disable Turbo telemetry and cache to avoid filesystem issues in Docker
