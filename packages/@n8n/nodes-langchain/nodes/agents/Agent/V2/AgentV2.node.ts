@@ -105,7 +105,7 @@ export class AgentV2 implements INodeType {
 	constructor(baseDescription: INodeTypeBaseDescription) {
 		this.description = {
 			...baseDescription,
-			version: 2,
+			version: [2, 2.1],
 			defaults: {
 				name: 'AI Agent',
 				color: '#404040',
@@ -171,6 +171,11 @@ export class AgentV2 implements INodeType {
 					type: 'boolean',
 					default: false,
 					noDataExpression: true,
+					displayOptions: {
+						show: {
+							'@version': [{ _cnd: { gte: '2.1' } }],
+						},
+					},
 				},
 				{
 					displayName:
@@ -181,7 +186,7 @@ export class AgentV2 implements INodeType {
 					displayOptions: {
 						show: {
 							needsFallback: [true],
-						}
+						},
 					},
 				},
 				{
