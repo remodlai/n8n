@@ -20,6 +20,7 @@ import { toolsAgentExecute } from '../agents/ToolsAgent/V2/execute';
 function getInputs(
 	hasOutputParser?: boolean,
 	needsFallback?: boolean,
+	enableFillerStreaming?: boolean,
 ): Array<NodeConnectionType | INodeInputConfiguration> {
 	interface SpecialInput {
 		type: NodeConnectionType;
@@ -77,6 +78,19 @@ function getInputs(
 			},
 		},
 		{
+			type: 'ai_languageModel',
+			displayName: 'Filler Model',
+			required: false,
+			filter: {
+				excludedNodes: [
+					'@n8n/n8n-nodes-langchain.lmCohere',
+					'@n8n/n8n-nodes-langchain.lmOllama',
+					'n8n/n8n-nodes-langchain.lmOpenAi',
+					'@n8n/n8n-nodes-langchain.lmOpenHuggingFaceInference',
+				],
+			},
+		},
+		{
 			displayName: 'Memory',
 			type: 'ai_memory',
 		},
@@ -96,6 +110,9 @@ function getInputs(
 	if (needsFallback === false) {
 		specialInputs = specialInputs.filter((input) => input.displayName !== 'Fallback Model');
 	}
+	if (enableFillerStreaming === false) {
+		specialInputs = specialInputs.filter((input) => input.displayName !== 'Filler Model');
+	}
 	return ['main', ...getInputData(specialInputs)];
 }
 
@@ -111,10 +128,10 @@ export class AgentV2 implements INodeType {
 				color: '#404040',
 			},
 			inputs: `={{
-				((hasOutputParser, needsFallback) => {
+				((hasOutputParser, needsFallback, enableFillerStreaming) => {
 					${getInputs.toString()};
-					return getInputs(hasOutputParser, needsFallback)
-				})($parameter.hasOutputParser === undefined || $parameter.hasOutputParser === true, $parameter.needsFallback === undefined || $parameter.needsFallback === true)
+					return getInputs(hasOutputParser, needsFallback, enableFillerStreaming)
+				})($parameter.hasOutputParser === undefined || $parameter.hasOutputParser === true, $parameter.needsFallback === undefined || $parameter.needsFallback === true, $parameter.enableFillerStreaming === true)
 			}}`,
 			outputs: [NodeConnectionTypes.Main],
 			properties: [
@@ -199,6 +216,76 @@ export class AgentV2 implements INodeType {
 					displayOptions: {
 						hide: {
 							'@version': [{ _cnd: { lt: 2.2 } }],
+						},
+					},
+				},
+				{
+					displayName: 'Enable Filler Streaming',
+					name: 'enableFillerStreaming',
+					type: 'boolean',
+					default: false,
+					description: 'Stream filler responses while the main agent is processing',
+					displayOptions: {
+						show: {
+							enableStreaming: [true],
+							'@version': [{ _cnd: { gte: 2.2 } }],
+						},
+					},
+				},
+				{
+					displayName:
+						'Connect a fast language model to provide immediate responses while the main agent processes',
+					name: 'fillerNotice',
+					type: 'notice',
+					default: '',
+					displayOptions: {
+						show: {
+							enableFillerStreaming: [true],
+						},
+					},
+				},
+				{
+					displayName: 'Filler System Message',
+					name: 'fillerSystemMessage',
+					type: 'string',
+					default:
+						"You are a helpful assistant. Provide a brief acknowledgment or thinking message while processing the user's request. Keep it natural and conversational.",
+					typeOptions: {
+						rows: 4,
+					},
+					displayOptions: {
+						show: {
+							enableFillerStreaming: [true],
+						},
+					},
+					description: 'System message for the filler model',
+				},
+				{
+					displayName: 'Filler User Prompt',
+					name: 'fillerUserPrompt',
+					type: 'string',
+					default:
+						'The user asked: "{{$json.input}}". Briefly acknowledge their request while I process it.',
+					typeOptions: {
+						rows: 3,
+					},
+					displayOptions: {
+						show: {
+							enableFillerStreaming: [true],
+						},
+					},
+					description: 'Dynamic prompt template for the filler model. Supports expressions.',
+				},
+				{
+					displayName: 'Stream Intermediate Steps',
+					name: 'streamIntermediateSteps',
+					type: 'boolean',
+					default: false,
+					description: 'Stream agent tool calls and thinking steps as events',
+					displayOptions: {
+						show: {
+							enableStreaming: [true],
+							'@version': [{ _cnd: { gte: 2.2 } }],
 						},
 					},
 				},

@@ -9,7 +9,7 @@ import type { BaseChatMemory } from 'langchain/memory';
 import type { DynamicStructuredTool, Tool } from 'langchain/tools';
 import omit from 'lodash/omit';
 import { jsonParse, NodeOperationError, sleep } from 'n8n-workflow';
-import type { IExecuteFunctions, INodeExecutionData } from 'n8n-workflow';
+import type { IExecuteFunctions, INodeExecutionData, IDataObject } from 'n8n-workflow';
 import assert from 'node:assert';
 
 import { getPromptInputByType } from '@utils/helpers';
@@ -67,39 +67,130 @@ function createAgentExecutor(
 async function processEventStream(
 	ctx: IExecuteFunctions,
 	eventStream: IterableReadableStream<StreamEvent>,
-): Promise<{ output: string }> {
-	const agentResult = {
+	fillerModel?: BaseChatModel,
+	fillerPrompt?: string,
+	streamIntermediateSteps?: boolean,
+): Promise<any> {
+	const fullResponse: any = {
 		output: '',
+		intermediate_steps: [],
 	};
 
-	ctx.sendChunk('begin');
-	for await (const event of eventStream) {
-		// Stream chat model tokens as they come in
-		switch (event.event) {
-			case 'on_chat_model_stream':
-				const chunk = event.data?.chunk as AIMessageChunk;
-				if (chunk?.content) {
-					const chunkContent = chunk.content;
-					let chunkText = '';
-					if (Array.isArray(chunkContent)) {
-						for (const message of chunkContent) {
-							chunkText += (message as MessageContentText)?.text;
-						}
-					} else if (typeof chunkContent === 'string') {
-						chunkText = chunkContent;
-					}
-					ctx.sendChunk('item', chunkText);
+	let mainStreamBuffer: string[] = [];
+	let bufferCount = 0;
+	let fillerComplete = false;
+	let switchedToMain = false;
 
-					agentResult.output += chunkText;
-				}
-				break;
-			default:
-				break;
+	// Start with begin event
+	ctx.sendChunk('begin');
+
+	// If we have a filler model, start streaming filler content
+	if (fillerModel && fillerPrompt) {
+		try {
+			const fillerStream = await fillerModel.stream(fillerPrompt);
+			let fillerContent = '';
+
+			// Send filler content as a complete chunk, not token by token
+			for await (const chunk of fillerStream) {
+				fillerContent += chunk.content;
+			}
+
+			if (fillerContent && !switchedToMain) {
+				// Send filler as a custom event
+				ctx.sendChunk('item', {
+					type: 'filler',
+					content: fillerContent,
+				});
+			}
+			fillerComplete = true;
+		} catch (error) {
+			console.error('Filler model error:', error);
+			fillerComplete = true;
 		}
 	}
+
+	// Process main event stream
+	for await (const event of eventStream) {
+		if (event.event === 'on_llm_stream' && event.data?.chunk) {
+			const messageChunk = event.data.chunk as AIMessageChunk;
+
+			if (messageChunk.content) {
+				// Handle different content types
+				let contentText = '';
+				if (typeof messageChunk.content === 'string') {
+					contentText = messageChunk.content;
+				} else if (Array.isArray(messageChunk.content)) {
+					// Handle MessageContentComplex[] - extract text content
+					contentText = messageChunk.content
+						.map((item: any) => {
+							if (typeof item === 'string') return item;
+							if (item.type === 'text' && item.text) return item.text;
+							return '';
+						})
+						.join('');
+				}
+
+				fullResponse.output += contentText;
+
+				// Buffer first 10 chunks
+				if (bufferCount < 10) {
+					mainStreamBuffer.push(contentText);
+					bufferCount++;
+				} else {
+					// After buffering, switch to main stream
+					if (!switchedToMain) {
+						switchedToMain = true;
+						// Send all buffered content at once
+						ctx.sendChunk('item', mainStreamBuffer.join(''));
+						mainStreamBuffer = [];
+					}
+					// Continue streaming main content
+					ctx.sendChunk('item', contentText);
+				}
+			}
+		} else if (event.event === 'on_tool_start') {
+			// Stream intermediate steps as events
+			if (streamIntermediateSteps) {
+				ctx.sendChunk('item', {
+					type: 'intermediate_step',
+					tool: event.name,
+					input: event.data?.input,
+				});
+			}
+
+			// Collect for final response
+			fullResponse.intermediate_steps.push({
+				tool: event.name,
+				input: event.data?.input,
+			});
+		} else if (event.event === 'on_tool_end') {
+			// Stream tool results
+			if (streamIntermediateSteps) {
+				ctx.sendChunk('item', {
+					type: 'intermediate_step',
+					tool: event.name,
+					output: event.data?.output,
+				});
+			}
+
+			// Update intermediate steps with output
+			const lastStep = fullResponse.intermediate_steps[fullResponse.intermediate_steps.length - 1];
+			if (lastStep && lastStep.tool === event.name) {
+				lastStep.output = event.data?.output;
+			}
+		}
+	}
+
+	// If we still have buffered content and haven't switched, send it now
+	if (mainStreamBuffer.length > 0 && !switchedToMain) {
+		ctx.sendChunk('item', mainStreamBuffer.join(''));
+	}
+
+	// End the stream
 	ctx.sendChunk('end');
 
-	return agentResult;
+	// Return the full response object as in non-streaming mode
+	return fullResponse;
 }
 
 /* -----------------------------------------------------------
@@ -140,6 +231,19 @@ export async function toolsAgentExecute(this: IExecuteFunctions): Promise<INodeE
 
 	// Check if streaming is enabled
 	const enableStreaming = this.getNodeParameter('enableStreaming', 0, false) as boolean;
+	const enableFillerStreaming = this.getNodeParameter('enableFillerStreaming', 0, false) as boolean;
+	const streamIntermediateSteps = this.getNodeParameter(
+		'streamIntermediateSteps',
+		0,
+		false,
+	) as boolean;
+
+	// Get filler model if enabled
+	let fillerModel: BaseChatModel | undefined;
+	if (enableStreaming && enableFillerStreaming) {
+		// Get the third model input (index 2) for filler
+		fillerModel = await getChatModel(this, 2);
+	}
 
 	for (let i = 0; i < items.length; i += batchSize) {
 		const batch = items.slice(i, i + batchSize);
@@ -197,7 +301,37 @@ export async function toolsAgentExecute(this: IExecuteFunctions): Promise<INodeE
 					...executeOptions,
 				});
 
-				return await processEventStream(this, eventStream);
+				// Prepare filler prompt if enabled
+				let fillerPrompt = '';
+				if (fillerModel && enableFillerStreaming) {
+					const fillerSystemMessage = this.getNodeParameter(
+						'fillerSystemMessage',
+						itemIndex,
+						'',
+					) as string;
+					const fillerUserPromptTemplate = this.getNodeParameter(
+						'fillerUserPrompt',
+						itemIndex,
+						'',
+					) as string;
+
+					// Process the filler user prompt as an expression
+					const fillerUserPrompt = this.evaluateExpression(
+						fillerUserPromptTemplate,
+						itemIndex,
+					) as string;
+
+					// Combine system and user messages for filler
+					fillerPrompt = `${fillerSystemMessage}\n\nUser: ${fillerUserPrompt}`;
+				}
+
+				return await processEventStream(
+					this,
+					eventStream,
+					fillerModel,
+					fillerPrompt,
+					streamIntermediateSteps,
+				);
 			} else {
 				// Handle regular execution
 				return await executor.invoke(invokeParams, executeOptions);
