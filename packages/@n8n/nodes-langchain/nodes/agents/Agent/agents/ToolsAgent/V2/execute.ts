@@ -8,7 +8,7 @@ import { AgentExecutor, createToolCallingAgent } from 'langchain/agents';
 import type { BaseChatMemory } from 'langchain/memory';
 import type { DynamicStructuredTool, Tool } from 'langchain/tools';
 import omit from 'lodash/omit';
-import { jsonParse, NodeOperationError, sleep } from 'n8n-workflow';
+import { jsonParse, NodeOperationError, sleep, NodeConnectionTypes } from 'n8n-workflow';
 import type { IExecuteFunctions, INodeExecutionData, IDataObject } from 'n8n-workflow';
 import assert from 'node:assert';
 
@@ -218,9 +218,21 @@ export async function toolsAgentExecute(this: IExecuteFunctions): Promise<INodeE
 	) as number;
 	const needsFallback = this.getNodeParameter('needsFallback', 0, false) as boolean;
 	const memory = await getOptionalMemory(this);
-	const model = await getChatModel(this, 0);
+	const model = await getChatModel(this);
 	assert(model, 'Please connect a model to the Chat Model input');
-	const fallbackModel = needsFallback ? await getChatModel(this, 1) : null;
+
+	// Get fallback model if needed
+	let fallbackModel: BaseChatModel | null = null;
+	if (needsFallback) {
+		const connectedModels = await this.getInputConnectionData(
+			NodeConnectionTypes.AiLanguageModel,
+			0,
+		);
+		if (Array.isArray(connectedModels) && connectedModels.length > 1) {
+			const reversedModels = [...connectedModels].reverse();
+			fallbackModel = reversedModels[1] as BaseChatModel;
+		}
+	}
 
 	if (needsFallback && !fallbackModel) {
 		throw new NodeOperationError(
@@ -241,8 +253,16 @@ export async function toolsAgentExecute(this: IExecuteFunctions): Promise<INodeE
 	// Get filler model if enabled
 	let fillerModel: BaseChatModel | undefined;
 	if (enableStreaming && enableFillerStreaming) {
-		// Get the third model input (index 2) for filler
-		fillerModel = await getChatModel(this, 2);
+		// Get all connected models and pick the third one (index 2)
+		const connectedModels = await this.getInputConnectionData(
+			NodeConnectionTypes.AiLanguageModel,
+			0,
+		);
+		if (Array.isArray(connectedModels) && connectedModels.length > 2) {
+			// We get the models in reversed order from the workflow so we need to reverse them
+			const reversedModels = [...connectedModels].reverse();
+			fillerModel = reversedModels[2] as BaseChatModel;
+		}
 	}
 
 	for (let i = 0; i < items.length; i += batchSize) {
