@@ -84,29 +84,44 @@ async function processEventStream(
 	// Start with begin event
 	ctx.sendChunk('begin');
 
-	// If we have a filler model, start streaming filler content
+	// Start filler stream concurrently (don't await it)
+	let fillerStreamPromise: Promise<void> | null = null;
 	if (fillerModel && fillerPrompt) {
-		try {
-			const fillerStream = await fillerModel.stream(fillerPrompt);
-			let fillerContent = '';
+		console.log('Starting filler stream with prompt:', fillerPrompt);
+		fillerStreamPromise = (async () => {
+			try {
+				const fillerStream = await fillerModel.stream(fillerPrompt);
 
-			// Send filler content as a complete chunk, not token by token
-			for await (const chunk of fillerStream) {
-				fillerContent += chunk.content;
-			}
+				// Stream filler content token by token
+				for await (const chunk of fillerStream) {
+					if (chunk.content && !switchedToMain) {
+						// Extract content text like we do for main stream
+						let contentText = '';
+						if (typeof chunk.content === 'string') {
+							contentText = chunk.content;
+						} else if (Array.isArray(chunk.content)) {
+							// Handle MessageContentComplex[] - extract text content
+							contentText = chunk.content
+								.map((item: any) => {
+									if (typeof item === 'string') return item;
+									if (item.type === 'text' && item.text) return item.text;
+									return '';
+								})
+								.join('');
+						}
 
-			if (fillerContent && !switchedToMain) {
-				// Send filler as a custom event
-				ctx.sendChunk('item', {
-					type: 'filler',
-					content: fillerContent,
-				});
+						if (contentText) {
+							// Send each token as it arrives
+							ctx.sendChunk('item', contentText);
+						}
+					}
+				}
+				fillerComplete = true;
+			} catch (error) {
+				console.error('Filler model error:', error);
+				fillerComplete = true;
 			}
-			fillerComplete = true;
-		} catch (error) {
-			console.error('Filler model error:', error);
-			fillerComplete = true;
-		}
+		})();
 	}
 
 	// Process main event stream
@@ -199,6 +214,11 @@ async function processEventStream(
 		ctx.sendChunk('item', mainStreamBuffer.join(''));
 	}
 
+	// Wait for filler stream to complete if it's still running
+	if (fillerStreamPromise) {
+		await fillerStreamPromise;
+	}
+
 	// End the stream
 	ctx.sendChunk('end', JSON.stringify(fullResponse));
 
@@ -266,15 +286,23 @@ export async function toolsAgentExecute(this: IExecuteFunctions): Promise<INodeE
 	// Get filler model if enabled
 	let fillerModel: BaseChatModel | undefined;
 	if (enableStreaming && enableFillerStreaming) {
+		console.log('Filler streaming is enabled, getting filler model...');
 		// Get all connected models and pick the third one (index 2)
 		const connectedModels = await this.getInputConnectionData(
 			NodeConnectionTypes.AiLanguageModel,
 			0,
 		);
+		console.log(
+			'Connected models count:',
+			Array.isArray(connectedModels) ? connectedModels.length : 0,
+		);
 		if (Array.isArray(connectedModels) && connectedModels.length > 2) {
 			// We get the models in reversed order from the workflow so we need to reverse them
 			const reversedModels = [...connectedModels].reverse();
 			fillerModel = reversedModels[2] as BaseChatModel;
+			console.log('Filler model set:', fillerModel ? 'yes' : 'no');
+		} else {
+			console.log('Not enough models connected for filler streaming');
 		}
 	}
 
@@ -348,14 +376,20 @@ export async function toolsAgentExecute(this: IExecuteFunctions): Promise<INodeE
 						'',
 					) as string;
 
+					console.log('Filler system message:', fillerSystemMessage);
+					console.log('Filler user prompt template:', fillerUserPromptTemplate);
+
 					// Process the filler user prompt as an expression
 					const fillerUserPrompt = this.evaluateExpression(
 						fillerUserPromptTemplate,
 						itemIndex,
 					) as string;
 
+					console.log('Evaluated filler user prompt:', fillerUserPrompt);
+
 					// Combine system and user messages for filler
 					fillerPrompt = `${fillerSystemMessage}\n\nUser: ${fillerUserPrompt}`;
+					console.log('Final filler prompt:', fillerPrompt);
 				}
 
 				return await processEventStream(
