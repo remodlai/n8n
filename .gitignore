@@ -33,3 +33,11 @@ config.md
 n8n-simple-config.json
 n8n-production-config.json
 n8n-secret-config.json
+packages/testing/playwright/playwright-report
+packages/testing/playwright/test-results
+packages/testing/playwright/ms-playwright-cache
+test-results/
+compiled_app_output
+trivy_report*
+compiled
+jest.config.js
