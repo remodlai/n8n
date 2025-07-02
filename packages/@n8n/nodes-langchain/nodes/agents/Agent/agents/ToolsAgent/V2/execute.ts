@@ -111,7 +111,13 @@ async function processEventStream(
 
 	// Process main event stream
 	for await (const event of eventStream) {
-		if (event.event === 'on_llm_stream' && event.data?.chunk) {
+		// Debug: Log all events to see what's being received
+		console.log('Stream event:', event.event, event.name, event.data);
+
+		if (
+			(event.event === 'on_llm_stream' || event.event === 'on_chat_model_stream') &&
+			event.data?.chunk
+		) {
 			const messageChunk = event.data.chunk as AIMessageChunk;
 
 			if (messageChunk.content) {
@@ -147,6 +153,13 @@ async function processEventStream(
 					// Continue streaming main content
 					ctx.sendChunk('item', contentText);
 				}
+			}
+		} else if (event.event === 'on_llm_end' && event.data?.output) {
+			// Some events might send the full output at the end
+			const output = event.data.output;
+			if (typeof output === 'string' && output && !fullResponse.output) {
+				fullResponse.output = output;
+				ctx.sendChunk('item', output);
 			}
 		} else if (event.event === 'on_tool_start') {
 			// Stream intermediate steps as events
@@ -187,7 +200,7 @@ async function processEventStream(
 	}
 
 	// End the stream
-	ctx.sendChunk('end');
+	ctx.sendChunk('end', JSON.stringify(fullResponse));
 
 	// Return the full response object as in non-streaming mode
 	return fullResponse;
